@@ -23,19 +23,56 @@ expand_home() {
     echo -ne "${1/#\~/$HOME}"
 }
 
-cache_root="${BUILDKITE_PLUGIN_NSCACHE_CACHE_ROOT:-/cache}"
+path_to_component() {
+    echo -ne "${1//\//__}"
+}
+
+detect_project_caches() {
+    result=()
+    if [ -f "package.json" ]; then
+        echo "Detected a Node.js project (package.json present). "
+        node_paths=("node_modules")
+        [ -f "package-lock.json" ] && npm_cache=$(npm config get cache) && node_paths+=("$npm_cache")
+        [ -f "yarn.lock" ] && yarn_cache=$(yarn cache dir) && node_paths+=("$yarn_cache")
+        [ -f "pnpm-lock.yaml" ] && pnpm_cache=$(pnpm store path) && node_paths+=("$pnpm_cache")
+        result+=("${node_paths[@]}")
+        echo "Caching ${node_paths[*]}."
+    fi
+    if [ -f "go.mod" ]; then
+        echo "Detected a Go project (go.mod present)."
+        go_paths=()
+        gomodcache=$(go env GOMODCACHE) && go_paths+=("$gomodcache")
+        gocache=$(go env GOCACHE) && go_paths+=("$gocache")
+        result+=("${go_paths[@]}")
+        echo "Caching ${go_paths[*]}."
+    fi
+}
+
+if [[ -z "${NSC_CACHE_PATH:-}" ]]; then
+    echo "Could not detect cache volume path. To enable caching add the following to pipeline.yml:
+    agents:
+      nsc-cache-tag: my-repo/my-step-cache
+      nsc-cache-size: 2g # optional, default: 5g"
+    exit 1
+fi
+
+cache_root="${NSC_CACHE_PATH}"
 read_value_or_list BUILDKITE_PLUGIN_NSCACHE_PATHS
 paths=("${result[@]}")
 
-if [ ! -d "$cache_root" ]; then
-    echo "Cache root $cache_root does not exist."
-    echo "Add 'nsc-cache-tag' agent tag to the step to enable caching and set plugin 'cache-root' option to match 'nsc-cache-path'."
+if [ ${#paths[@]} -eq 0 ]; then
+    detect_project_caches
+    paths=("${result[@]}")
+fi
+
+if [ ${#paths[@]} -eq 0 ]; then
+    echo 'No cache paths specified and no framework detected. Add `paths: ["path/to/cached/directory"]` to pipeline.yml'
     exit 1
 fi
 
 for p in "${paths[@]}"; do
     fp=$(expand_home "$p")
-    k=$(echo "$p" | base64)
+    k=$(path_to_component "$p")
     cp="$cache_root/nscache/$k"
 
     mkdir -p "$fp" "$cp"

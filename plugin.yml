@@ -1,7 +1,7 @@
 name: Namespace Cloud Cache
 description: Persist cache between job executions on Namespace Cloud
 author: https://namespace.so/
-requirements: [base64]
+requirements: []
 configuration:
   properties:
     paths:
