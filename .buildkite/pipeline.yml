@@ -1,0 +1,5 @@
+steps:
+ - label: "🐚 Lint"
+    plugins:
+      plugin-linter#v3.0.0:
+        id: namespacelabs/nscache

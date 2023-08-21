@@ -1,0 +1,47 @@
+#!/bin/bash
+set -eu
+
+read_value_or_list() {
+    local prefix="$1"
+    result=()
+
+    if [[ -n "${!prefix:-}" ]]; then
+        result+=("${!prefix}")
+    fi
+    
+    for (( i=0; ; i++ )); do
+        local parameter="${prefix}_${i}"
+        if [[ -z "${!parameter:-}" ]]; then
+            break
+        fi
+        result+=("${!parameter}")
+    done
+}
+
+expand_home() {
+    # Too bad we don't have wordexp() in Bash.
+    echo -ne "${1/#\~/$HOME}"
+}
+
+cache_root="${BUILDKITE_PLUGIN_NSCACHE_CACHE_ROOT:-/cache}"
+read_value_or_list BUILDKITE_PLUGIN_NSCACHE_PATHS
+paths=("${result[@]}")
+
+if [ ! -d "$cache_root" ]; then
+    echo "Cache root $cache_root does not exist."
+    echo "Add 'nsc-cache-tag' agent tag to the step to enable caching and set plugin 'cache-root' option to match 'nsc-cache-path'."
+    exit 1
+fi
+
+for p in "${paths[@]}"; do
+    fp=$(expand_home "$p")
+    k=$(echo "$p" | base64)
+    cp="$cache_root/nscache/$k"
+
+    mkdir -p "$fp" "$cp"
+    mount --bind "$cp" "$fp"
+
+    size=$(du -sh "$fp" | cut -f1)
+    echo "Mounted cache on $fp (size $size)"
+done
+
