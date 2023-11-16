@@ -1,6 +1,11 @@
 #!/bin/bash
 set -eu
 
+command_exists() {
+    command -v $1 > /dev/null
+    return $?
+}
+
 read_value_or_list() {
     local prefix="$1"
     result=()
@@ -32,18 +37,40 @@ detect_project_caches() {
     if [ -f "package.json" ]; then
         echo "Detected a Node.js project (package.json present). "
         node_paths=("node_modules")
-        [ -f "package-lock.json" ] && npm_cache=$(npm config get cache) && node_paths+=("$npm_cache")
-        [ -f "yarn.lock" ] && yarn_cache=$(yarn cache dir) && node_paths+=("$yarn_cache")
-        [ -f "pnpm-lock.yaml" ] && pnpm_cache=$(pnpm store path) && node_paths+=("$pnpm_cache")
+        if [ -f "package-lock.json" ]; then
+            if command_exists npm; then
+                npm_cache=$(npm config get cache) && node_paths+=("$npm_cache")
+            else
+                echo "Warning: npm lock file found, but npm binary is not available."
+            fi
+        fi
+        if [ -f "yarn.lock" ]; then
+            if command_exists yarn; then
+                yarn_cache=$(yarn cache dir) && node_paths+=("$yarn_cache")
+            else
+                echo "Warning: yarn lock file found, but yarn binary is not available."
+            fi
+        fi
+        if [ -f "pnpm-lock.yaml" ]; then
+            if command_exists pnpm; then
+                pnpm_cache=$(pnpm store path) && node_paths+=("$pnpm_cache")
+            else
+                echo "Warning: pnpm lock file found, but pnpm binary is not available."
+            fi
+        fi
         result+=("${node_paths[@]}")
         echo "Caching ${node_paths[*]}."
     fi
     if [ -f "go.mod" ]; then
         echo "Detected a Go project (go.mod present)."
         go_paths=()
-        gomodcache=$(go env GOMODCACHE) && go_paths+=("$gomodcache")
-        gocache=$(go env GOCACHE) && go_paths+=("$gocache")
-        result+=("${go_paths[@]}")
+        if command_exists go; then
+            gomodcache=$(go env GOMODCACHE) && go_paths+=("$gomodcache")
+            gocache=$(go env GOCACHE) && go_paths+=("$gocache")
+            result+=("${go_paths[@]}")
+        else
+            echo "Warning: go.mod file found, but go binary is not available."
+        fi 
         echo "Caching ${go_paths[*]}."
     fi
 }
