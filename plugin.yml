@@ -6,4 +6,6 @@ configuration:
   properties:
     paths:
       type: [string, array]
+    symlink:
+      type: boolean
   additionalProperties: false
