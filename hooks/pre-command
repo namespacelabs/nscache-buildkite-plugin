@@ -2,13 +2,13 @@
 set -eu
 
 command_exists() {
-    command -v $1 > /dev/null
+    command -v "$1" > /dev/null
     return $?
 }
 
 read_value_or_list() {
     local prefix="$1"
-    result=()
+    declare -a result=()
 
     if [[ -n "${!prefix:-}" ]]; then
         result+=("${!prefix}")
@@ -85,11 +85,19 @@ fi
 
 cache_root="${NSC_CACHE_PATH}"
 read_value_or_list BUILDKITE_PLUGIN_NSCACHE_PATHS
-paths=("${result[@]}")
+declare -a paths=("${result[@]+"${result[@]}"}")
+
+symlink=false
+if [ "$(uname)" = "Darwin" ]; then
+    symlink=true
+fi
+if [ -n "${BUILDKITE_PLUGIN_NSCACHE_SYMLINK+x}" ]; then
+    symlink=$BUILDKITE_PLUGIN_NSCACHE_SYMLINK
+fi
 
 if [ ${#paths[@]} -eq 0 ]; then
     detect_project_caches
-    paths=("${result[@]}")
+    paths=("${result[@]+"${result[@]}"}")
 fi
 
 if [ ${#paths[@]} -eq 0 ]; then
@@ -102,8 +110,14 @@ for p in "${paths[@]}"; do
     k=$(path_to_component "$p")
     cp="$cache_root/nscache/$k"
 
-    mkdir -p "$fp" "$cp"
-    mount --bind "$cp" "$fp"
+    if [ "$symlink" = true ]; then
+        mkdir -p "$cp"
+        mkdir -p "$(dirname "$fp")"
+        ln -snf "$cp" "$fp"
+    else
+        mkdir -p "$fp" "$cp"
+        mount --bind "$cp" "$fp"
+    fi
 
     size=$(du -sh "$fp" | cut -f1)
     echo "Mounted cache on $fp (size $size)"
