@@ -8,7 +8,7 @@ command_exists() {
 
 read_value_or_list() {
     local prefix="$1"
-    declare -a result=()
+    result=()
 
     if [[ -n "${!prefix:-}" ]]; then
         result+=("${!prefix}")
@@ -85,7 +85,7 @@ fi
 
 cache_root="${NSC_CACHE_PATH}"
 read_value_or_list BUILDKITE_PLUGIN_NSCACHE_PATHS
-declare -a paths=("${result[@]+"${result[@]}"}")
+paths=("${result[@]+"${result[@]}"}")
 
 symlink=false
 if [ "$(uname)" = "Darwin" ]; then
